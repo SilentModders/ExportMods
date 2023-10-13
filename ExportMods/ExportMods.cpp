@@ -61,23 +61,13 @@ typedef struct SFSEMessagingInterface_t
     bool	    (*Dispatch)(PluginHandle sender, uint32_t messageType, void* data, uint32_t dataLen, const char* receiver);
 } SFSEMessagingInterface;
 
-static void OnPreload();
 static void OnPostLoad();
-static void OnDelayLoad();
-
-static DWORD ThreadProc_OnDelayLoad(void* unused)
-{
-    (void)unused;
-    Sleep(8000); // a reasonable amount of time for the game to initialize
-    OnDelayLoad();
-    return 0;
-}
 
 static void MyMessageEventCallback(SFSEMessage* msg)
 {
-    if (msg->type == 0 /* postload */) {
+    if (msg->type == 0) // postload
+    {
         OnPostLoad();
-        CreateThread(NULL, 4096, ThreadProc_OnDelayLoad, NULL, 0, NULL);
     }
 }
 
@@ -86,45 +76,8 @@ extern "C" __declspec(dllexport) void SFSEPlugin_Preload(const SFSEInterface * s
     PluginHandle my_handle = sfse->GetPluginHandle();
     SFSEMessagingInterface* msg = (SFSEMessagingInterface*)sfse->QueryInterface(1 /* messaging interface */);
     msg->RegisterListener(my_handle, "SFSE", MyMessageEventCallback);
-    OnPreload();
 }
 #pragma endregion SFSE Setup Code
-
-// Relocate an offset from imagebase
-template<typename T> static inline T Relocate(uintptr_t offset);
-
-// Write memory
-template<typename T> static inline bool WriteMemory(void* address, T* buffer);
-
-#pragma region HELPER_FUNCTIONS
-
-static uintptr_t relocate_impl(uintptr_t offset)
-{
-    static uintptr_t base = (uintptr_t)GetModuleHandleW(NULL);
-    return base + offset;
-}
-
-template<typename T>
-static inline T Relocate(uintptr_t offset)
-{
-    return (T)relocate_impl(offset);
-}
-
-static bool write_process_memory_impl(void* address, void* buffer, size_t buffer_size)
-{
-    static HANDLE process = GetCurrentProcess();
-    size_t bytes_written = 0;
-    auto ret = WriteProcessMemory(process, address, buffer, buffer_size, &bytes_written);
-    return (ret && (bytes_written == buffer_size));
-}
-
-template<typename T>
-static inline bool WriteMemory(void* address, T* buffer)
-{
-    return write_process_memory_impl(address, buffer, sizeof(T));
-}
-
-#pragma endregion Functions to help patch memory
 
 extern "C" __declspec(dllexport) SFSEPluginVersionData SFSEPlugin_Version =
 {
@@ -143,23 +96,11 @@ extern "C" __declspec(dllexport) SFSEPluginVersionData SFSEPlugin_Version =
 // rundll32 ExportMods.dll,Manual_load
 extern "C" __declspec(dllexport) void Manual_load() { OnPostLoad(); }
 
-// Called once during preload
-// use this to patch the game exe before static initialization
-static void OnPreload()
-{
-    //MessageBoxA(NULL, "OnPreload", "Debug Message", 0);
-}
-
 // Called once when SFSE sends the postload event after static initialization
 static void OnPostLoad()
 {
     if (!StartUp())
+    {
         MessageBoxA(NULL, "Unable to create log!", "Mod Export Error", 0);
-}
-
-// This function is called once about 8 seconds after the dll is loaded
-// should be enough time for the game to initialize any data you want to modify
-static void OnDelayLoad()
-{
-    //MessageBoxA(NULL, "OnDelayLoad", "Debug Message", 0);
+    }
 }
