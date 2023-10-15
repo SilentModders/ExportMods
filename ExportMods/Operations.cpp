@@ -1,6 +1,6 @@
 /*
 	SFSE Plugin to export mods deployed with Vortex.
-	By Bit Mage
+	By BitMage
 // */
 
 #include "pch.h"
@@ -18,6 +18,7 @@ char Game_Path[MAX_PATH]; // This will be where vortex.deployment.json resides.
 constexpr auto INI_PATH = "\\Data\\SFSE\\Plugins\\ExportMods.ini"; // Where the INI should be
 bool bEnableLogging = false; // Is the log enabled in the INI?
 char modReport[MAX_PATH]="Modlist.htm"; // Default file name, INI option
+constexpr auto NEXUS = "https://www.nexusmods.com/starfield/mods/";
 
 // The file streams are global.
 std::ofstream output;// Log file
@@ -25,6 +26,9 @@ std::ifstream input; // Vortex file
 std::ofstream report;// htm file
 
 std::vector<std::string>Mods; // Full mod list
+
+// This is only called once, but it's a lot of text.
+void HTML_Header(), HTML_Footer(int mods = 0);
 
 // Where are we?
 bool GetPath()
@@ -51,7 +55,8 @@ bool StartUp()
 	char szFolderPath[MAX_PATH];
 	if (!SHGetSpecialFolderPathA(NULL, szFolderPath, CSIDL_MYDOCUMENTS, FALSE))
 	{
-		return false;
+		// Fail silently unless logging is enabled.
+		return !bEnableLogging;
 	}
 
 	if (bEnableLogging)
@@ -166,6 +171,11 @@ std::string LogMod()
 		{
 			token = token.substr(0, token.length() - 1);
 		}
+		// A lone hyphen means that it had a space on both sides.
+		if (token == "-")
+		{
+			token = " -";
+		}
 
 		// Log that word and advance input to the next one.
 		modname.append(token);
@@ -205,15 +215,7 @@ void ReadMods()
 {
 	LogLine("Listing mods:");
 
-	// Begin the HTML with a title and timestamp.
-	report << "<!DOCTYPE html>" << std::endl;
-	report << "<html lang=en>" << std::endl << "<head>" << std::endl;
-	report << "<title>Automated Mod Export</title>" << std::endl;
-	report << "</head>" << std::endl << "<body>" << std::endl;
-	report << "<br>" << std::endl;
-	report << "File generated ";
-	report << TimeStamp() << std::endl;
-	report << "<br><br>" << std::endl;
+	HTML_Header();
 
 	std::string line = "";
 
@@ -257,13 +259,49 @@ void ReadMods()
 	// Output the shorter mod list.
 	for (int j = 0; j < Mods.size(); j++)
 	{
-		report << Mods[j] << "<br>" << std::endl;
+		report << "<tr><td>";
+		std::string link = GuessLinkID(Mods[j]);
+		if (link != "")
+		{
+			report << "<a href=" << NEXUS << link << ">";
+		}
+		// Cut the mod name off after the Nexus ID if it has one.
+		report << Mods[j].substr(0, Mods[j].find(link) - 1);
+		if (link != "")
+		{
+			report << "</a>";
+		}
+		report << "</td></tr>" << std::endl;
 	}
-	report << "<br>" << std::endl;
+	HTML_Footer(Mods.size());
+}
 
-	// End the HTML.
-	report << "</body>" << std::endl;
-	report << "</html>" << std::endl;
+// Is this string a number?
+bool is_number(const std::string& s)
+{
+	return !s.empty() && std::find_if(s.begin(),
+		s.end(), [](unsigned char c) { return !std::isdigit(c); }) == s.end();
+}
+
+std::string GuessLinkID(std::string mod)
+{
+	/*
+		Basically this breaks up the mod's
+		file name by hyphens until one of
+		the pieces is just a number. That
+		is assumed be Nexus mod ID number.
+	// */
+	size_t pos = 0;
+	std::string token;
+	while ((pos = mod.find('-')) != std::string::npos)
+	{
+		Sleep(0);
+		token = mod.substr(0, pos);
+		if (is_number(token))
+			return token;
+		mod.erase(0, pos + 1);
+	}
+	return "";
 }
 
 void LogLine(std::string line)
@@ -293,4 +331,62 @@ std::string TimeStamp()
 	sTime[strlen(sTime) - 1] = '\0';
 
 	return sTime;
+}
+
+void HTML_Header()
+{
+	// Begin the HTML with a title and timestamp.
+	report << "<!DOCTYPE html>" << std::endl;
+	report << "<html lang=en>" << std::endl;
+	report << "<head>" << std::endl;
+	report << "<title>Automated Mod Export</title>" << std::endl;
+	report << "<style>" << std::endl;
+	report << "	body" << std::endl;
+	report << "	{" << std::endl;
+	report << "		padding-left: 10%;" << std::endl;
+	report << "		background: dimgray;" << std::endl;
+	report << "		color: lightgray;" << std::endl;
+	report << "	}" << std::endl;
+	report << "	h1" << std::endl;
+	report << "	{" << std::endl;
+	report << "		line-height: 5%;" << std::endl;
+	report << "	}" << std::endl;
+	report << "	table" << std::endl;
+	report << "	{" << std::endl;
+	report << "		border: 1px solid;" << std::endl;
+	report << "	}" << std::endl;
+	report << "	td" << std::endl;
+	report << "	{" << std::endl;
+	report << "		border: 1px solid;" << std::endl;
+	report << "		padding: 1%;" << std::endl;
+	report << "		width: 50%;" << std::endl;
+	report << "	}" << std::endl;
+	report << "</style>" << std::endl;
+	report << "</head>" << std::endl;
+	report << "<body>" << std::endl;
+	report << "<br>" << std::endl;
+	report << "<h1>Vortex Mod List</h1>" << std::endl;
+	report << "File generated: ";
+	report << TimeStamp() << std::endl;
+	report << "<br>" << std::endl;
+	report << "<br>" << std::endl;
+	report << "<table>" << std::endl;
+	report << "<tbody>" << std::endl;
+}
+
+void HTML_Footer(int mods)
+{
+	report << "</tbody>" << std::endl;
+	report << "</table>" << std::endl;
+	if (mods)
+	{
+		report << mods << " total mods.<br>" << std::endl;
+	}
+	report << "<br>" << std::endl;
+	report << "Vortex Mod Exporter v1.0 by BitMage. Share alike.<br>" << std::endl;
+	report << "<a href=" << NEXUS << "5352>Nexus Mods</a> | " << std::endl;
+	report << "<a href=https://github.com/SilentModders/ExportMods>GitHub</a><br>" << std::endl;
+	report << "<br>" << std::endl;
+	report << "</body>" << std::endl;
+	report << "</html>" << std::endl;
 }

@@ -1,6 +1,6 @@
 /*
     SFSE Plugin to export mods deployed with Vortex.
-    By Bit Mage
+    By BitMage
     Portions of code completely stolen from the SFSE Minimal Plugin Project
     https://www.nexusmods.com/starfield/mods/2033
 // */

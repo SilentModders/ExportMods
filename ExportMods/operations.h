@@ -11,3 +11,7 @@ void ReadMods();
 
 // Returns the current date and time.
 std::string TimeStamp();
+
+// Guesses Mod Nexus' link for a mod
+// Returns an empty string when it fails.
+std::string GuessLinkID(std::string mod);
